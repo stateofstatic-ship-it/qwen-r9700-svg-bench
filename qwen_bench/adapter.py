@@ -129,14 +129,23 @@ class CommandAdapter:
             for sig in (signal.SIGTERM, signal.SIGKILL):
                 try: os.killpg(self.process.pid, sig)
                 except ProcessLookupError: pass
+                except OSError as error:
+                    self.cleanup_warnings.append(f'Process-group signal {sig} failed: {error}')
                 if sig == signal.SIGTERM:
                     try: self.process.wait(timeout=.5)
-                    except subprocess.TimeoutExpired: pass
+                    except (OSError, subprocess.TimeoutExpired): pass
         elif self.process.poll() is None:
             try: subprocess.run(['taskkill','/PID',str(self.process.pid),'/T','/F'],capture_output=True,timeout=5)
-            except (OSError, subprocess.TimeoutExpired): self.process.kill()
-        if self.process.poll() is None: self.process.kill()
-        self.process.wait(timeout=5)
+            except (OSError, subprocess.TimeoutExpired) as error:
+                self.cleanup_warnings.append(f'Windows tree stop failed: {error}')
+        if self.process.poll() is None:
+            try: self.process.kill()
+            except ProcessLookupError: pass
+            except OSError as error:
+                self.cleanup_warnings.append(f'Direct-child stop failed: {error}')
+        try: self.process.wait(timeout=5)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            self.cleanup_warnings.append(f'Direct-child exit not confirmed: {error}')
         for thread in self.threads: thread.join(timeout=1)
         if self.sent is not None: self.sent.join(timeout=1)
         owners=[self.sent,*self.threads]
@@ -144,4 +153,6 @@ class CommandAdapter:
             if owner is not None and owner.is_alive():
                 self.cleanup_warnings.append('I/O owner still alive; buffered stream left open to avoid deadlock')
             elif not stream.closed:
-                stream.close()
+                try: stream.close()
+                except OSError as error:
+                    self.cleanup_warnings.append(f'Buffered stream close failed: {error}')

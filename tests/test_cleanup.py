@@ -13,6 +13,49 @@ from qwen_bench.core import KIT,execute,capture
 
 
 class CleanupTests(unittest.TestCase):
+    @unittest.skipUnless(os.name=='posix','POSIX process-group signaling')
+    def test_denied_group_cleanup_preserves_original_failure_and_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config=json.loads((KIT/'examples/fixture.json').read_text())
+            config['options']={'fixture_mode':'nonzero'}
+            start=time.monotonic()
+            with patch('qwen_bench.adapter.os.killpg',side_effect=PermissionError(1,'Operation not permitted')):
+                run,status=execute(runs_dir=directory,mode='fixture',config=config,print_fn=lambda _:None)
+            self.assertLess(time.monotonic()-start,10)
+            self.assertEqual(status['execution'],'failed')
+            self.assertIn('Adapter stdout closed',status['error'])
+            self.assertTrue(any('Process-group signal' in w for w in status['cleanup_warnings']))
+            self.assertEqual(json.loads((run/'status.json').read_text()),status)
+            self.assertTrue((run/'report.html').is_file())
+            self.assertTrue((run/'checkpoints/C0/result.json').is_file())
+
+    @unittest.skipUnless(os.name=='posix','POSIX process-group signaling')
+    def test_denied_group_cleanup_cannot_report_completed_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config=json.loads((KIT/'examples/fixture.json').read_text())
+            with patch('qwen_bench.adapter.os.killpg',side_effect=PermissionError(1,'Operation not permitted')):
+                run,status=execute(runs_dir=directory,mode='fixture',config=config,print_fn=lambda _:None)
+            self.assertEqual(len(status['sections']),4)
+            self.assertEqual(status['execution'],'failed')
+            self.assertEqual(status['error'],'Adapter cleanup incomplete')
+            self.assertNotEqual(status['trajectory'],'completed')
+            self.assertTrue((run/'report.html').is_file())
+
+    def test_unexpected_cleanup_error_cannot_prevent_failure_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config=json.loads((KIT/'examples/fixture.json').read_text())
+            config['options']={'fixture_mode':'nonzero'}
+            original=CommandAdapter.close
+            def close_then_raise(adapter):
+                original(adapter)
+                raise OSError('cleanup regression fixture')
+            with patch.object(CommandAdapter,'close',close_then_raise):
+                run,status=execute(runs_dir=directory,mode='fixture',config=config,print_fn=lambda _:None)
+            self.assertIn('Adapter stdout closed',status['error'])
+            self.assertTrue(any('cleanup regression fixture' in w for w in status['cleanup_warnings']))
+            self.assertEqual(json.loads((run/'status.json').read_text()),status)
+            self.assertTrue((run/'report.html').is_file())
+
     def test_nonfinite_deadlines_rejected(self):
         for value in (float('nan'),float('inf'),0,-1):
             with self.assertRaises(ValueError):execute(runs_dir='unused',turn_seconds=value,print_fn=lambda _:None)

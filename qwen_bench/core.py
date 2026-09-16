@@ -75,6 +75,17 @@ def capture(workspace, checkpoint, dimensions):
     return inspect(target,*dimensions)
 
 
+def close_adapter(adapter, status):
+    # Cleanup must not replace the original failure or prevent its saved report.
+    try: adapter.close()
+    except Exception as error:
+        adapter.cleanup_warnings.append(f'Cleanup raised {type(error).__name__}: {error}')
+    status['process_exit'] = adapter.process.returncode
+    status['cleanup_warnings'] = adapter.cleanup_warnings
+    if adapter.cleanup_warnings and status['execution'] == 'completed':
+        status.update(execution='failed', error='Adapter cleanup incomplete')
+
+
 def execute(*, runs_dir, mode='manual', config=None, protocol='v0.3-portable',
             turn_seconds=900, input_fn=input, print_fn=print, label='unspecified', cancel_event=None):
     if not isinstance(turn_seconds,(int,float)) or not math.isfinite(turn_seconds) or turn_seconds <= 0:
@@ -205,18 +216,14 @@ def execute(*, runs_dir, mode='manual', config=None, protocol='v0.3-portable',
         status['error']=f'{type(error).__name__}: {error}'
         record('runner',{'type':'run.stopped','error':status['error']})
         if adapter is not None:
-            adapter.close();status['process_exit']=adapter.process.returncode
-            status['cleanup_warnings']=adapter.cleanup_warnings;adapter=None
+            close_adapter(adapter,status);adapter=None
         if current is not None:
             current.update(execution=status['execution'],elapsed_seconds=time.monotonic()-start,error=status['error'])
             current['checks']=capture(workspace,run/'checkpoints'/phase,dimensions)
             save(run/'checkpoints'/phase/'result.json',current);status['sections'].append(current)
     finally:
         if adapter is not None:
-            adapter.close();status['process_exit']=adapter.process.returncode
-            status['cleanup_warnings']=adapter.cleanup_warnings
-            if adapter.cleanup_warnings and status['execution']=='completed':
-                status.update(execution='failed',error='Adapter cleanup incomplete')
+            close_adapter(adapter,status)
         events.close()
         aggregate(status,sorted(p.name for p in (run/'checkpoints').iterdir()))
         save(run/'status.json',status)
