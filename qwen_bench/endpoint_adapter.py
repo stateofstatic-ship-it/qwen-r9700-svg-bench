@@ -89,11 +89,13 @@ class Adapter:
             if instructions.is_symlink() or not instructions.is_file() or instructions.stat().st_size>65536: raise EndpointError('Invalid profile AGENTS.md')
             self.messages.append({'role':'system','content':instructions.read_text(encoding='utf-8')})
         self.save('endpoint-config.json', dict(self.config,track='text-only-diagnostic',tools=TOOLS,
+            history_policy='provider-text-reasoning-v1',
             benchmark_protocol=req.get('benchmark_protocol'),system_prompt=self.messages[0] if self.messages else None,
             runtime_settings_status='Sent in request payload; effective runtime settings not independently attested'))
         self.save('endpoint-models.json',metadata)
         self.ready = True
         self.event('preflight.completed',status='passed',same_session_supported=True,
+            history_policy='provider-text-reasoning-v1',
             model=self.model,endpoint=self.endpoint.url,request_configuration=self.config,
             controls='Text-only diagnostic track, not native primary track; metadata reachability/schema verified only; inference/tool-calling compatibility not yet proven. Exact user prompts, persistent actual message history; no shell, vision or helper agents. Profile AGENTS.md, when present, is a frozen system message. max_tokens='+str(self.config['max_tokens']))
 
@@ -178,6 +180,14 @@ class Adapter:
             calls=message.get('tool_calls') or []
             if not isinstance(calls,list): raise EndpointError('Invalid tool_calls')
             canonical={'role':'assistant','content':message.get('content')}
+            # These provider fields can be required by thinking-model templates
+            # between tool calls. Retain them privately, without synthesizing or
+            # mapping one vendor's field into another vendor's convention.
+            for field in ('reasoning', 'reasoning_content', 'thinking'):
+                if field in message:
+                    if not isinstance(message[field], (str, type(None))):
+                        raise EndpointError(f'Unsupported non-text assistant {field} field')
+                    canonical[field] = message[field]
             if calls:
                 if choice.get('finish_reason') not in ('tool_calls','stop'): raise EndpointError('Unexpected tool finish reason')
                 if steps+len(calls)>self.config['max_tool_steps']: raise EndpointError('Tool step limit exceeded')

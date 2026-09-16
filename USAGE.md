@@ -1,5 +1,9 @@
 # Small command-line interface
 
+Reasoning-heavy models may need a larger output-token ceiling than 8192: the provider can count reasoning against that limit before producing an SVG. A `length` failure is an incomplete generation, not a visual score. For a separately labeled higher-budget attempt, use Optional settings in the UI. Select **Standard harness settings** and clear the profile path to use that field directly; saved profile settings override matching UI fields. The launcher displays the effective requested limit before dispatch.
+
+The built-in harness retains provider-returned text fields `reasoning`, `reasoning_content`, and `thinking` in private conversation history without renaming them. This supports runtimes that need reasoning replay between tool calls; structured/encrypted vendor-specific reasoning formats need a compatible adapter. These fields are not shown in the report or public event stream. Runs remain private, unsanitized records.
+
 Open the local launcher: `python benchmark.py`
 
 No-model demo: `python benchmark.py --demo --no-open`

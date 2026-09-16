@@ -4,10 +4,11 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 from urllib import request,error
 from qwen_bench.core import KIT
 from qwen_bench.profiles import load_profile,apply_profile
-from qwen_bench.ui import make_server,PAGE
+from qwen_bench.ui import Launcher,make_server,PAGE
 
 
 class ProfileTests(unittest.TestCase):
@@ -29,6 +30,25 @@ class UITests(unittest.TestCase):
     def test_javascript_has_escaped_not_literal_newline(self):
         self.assertNotIn("join('\n')",PAGE)
         self.assertIn("join('\\n')",PAGE)
+
+    def test_effective_token_limit_logged_before_execution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            profile=Path(directory)/'profile.json'
+            profile.write_text(json.dumps({'format':'svg-bench-profile/1','harness':'direct','settings':{'max_tokens':4096}}))
+            for selected,expected,source in [('',16384,'token field'),(str(profile),4096,'saved profile')]:
+                with self.subTest(profile=selected):
+                    launcher=Launcher(directory)
+                    observed=[]
+                    def execute_stub(**kwargs):
+                        observed.append((kwargs['config']['options']['max_tokens'],list(launcher.messages)))
+                        return Path(directory),{}
+                    with patch('qwen_bench.ui.execute',side_effect=execute_stub) as execute:
+                        launcher.start({'endpoint':'http://localhost/v1','max_tokens':16384,'profile':selected})
+                        launcher.thread.join(timeout=5)
+                    self.assertFalse(launcher.thread.is_alive())
+                    execute.assert_called_once()
+                    self.assertEqual(observed,[(expected,[f'Effective output-token ceiling per model request: {expected} (from {source}; requested limit, not server-attested).'])])
+                    self.assertIsNone(launcher.error)
 
     def test_launcher_auth_and_fixture_flow(self):
         with tempfile.TemporaryDirectory() as directory:

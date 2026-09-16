@@ -99,6 +99,34 @@ class EndpointTests(unittest.TestCase):
         self.assertEqual(self.events[-1]['usage']['requests'][0]['raw']['prompt_tokens'],12)
         self.assertEqual(len([e for e in self.events if e['type']=='turn.completed']),4)
         with self.assertRaises(EndpointError):self.adapter.turn(self.turn_request(session=self.adapter.session))
+    def test_provider_reasoning_survives_tool_and_user_continuations_privately(self):
+        self.preflight()
+        fields={'reasoning':'synthetic reasoning marker','reasoning_content':'synthetic content marker','thinking':'synthetic thinking marker'}
+        call={'id':'reasoning-call','type':'function','function':{'name':'write_file','arguments':json.dumps({'path':'a.svg','content':'<svg/>'})}}
+        first=self.response([call],'tool_calls',None);first['choices'][0]['message'].update(fields)
+        terminal=self.response();terminal['choices'][0]['message']['reasoning']='synthetic terminal marker'
+        self.responses=[first,terminal,self.response()]
+        self.adapter.turn(self.turn_request('first','C0',self.adapter.session))
+        self.adapter.turn(self.turn_request('second','C1',self.adapter.session))
+        assistant=self.posts[1]['messages'][1]
+        self.assertEqual({k:assistant[k] for k in fields},fields)
+        self.assertEqual(assistant['tool_calls'],[call])
+        self.assertEqual(self.posts[1]['messages'][2]['tool_call_id'],'reasoning-call')
+        previous=[m for m in self.posts[2]['messages'] if m['role']=='assistant']
+        self.assertEqual(previous[0],assistant)
+        self.assertEqual(previous[1]['reasoning'],'synthetic terminal marker')
+        public_events=json.dumps(self.events)
+        self.assertNotIn('synthetic reasoning marker',public_events)
+        self.assertNotIn('synthetic terminal marker',public_events)
+        self.assertEqual(self.events[0]['history_policy'],'provider-text-reasoning-v1')
+
+    def test_non_text_reasoning_is_not_silently_dropped(self):
+        self.preflight()
+        response=self.response();response['choices'][0]['message']['reasoning']={'unsupported':'structured data'}
+        self.responses=[response]
+        with self.assertRaisesRegex(EndpointError,'Unsupported non-text assistant reasoning'):
+            self.adapter.turn(self.turn_request('first','C0',self.adapter.session))
+
     def test_workspace_guards_and_tools(self):
         self.preflight()
         try: (self.root/'workspace/link').symlink_to(self.root/'state',target_is_directory=True)

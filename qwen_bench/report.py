@@ -10,6 +10,9 @@ def write_report(run):
     status = json.loads((run/'status.json').read_text())
     manifest = json.loads((run/'manifest.json').read_text())
     esc = lambda value: html.escape(str(value), quote=True)
+    failure = f'<p role="alert">Run stopped: {esc(status["error"])}</p>' if status.get('error') else ''
+    if 'Incomplete generation: length' in str(status.get('error', '')):
+        failure += '<p>The model reached its output-token limit. Reasoning may consume that budget before an SVG is written. Preserve this attempt; use a separately labeled higher-budget profile or run to retry.</p>'
     rows, cards = [], []
     for result in status['sections']:
         label = result['checkpoint']
@@ -28,6 +31,7 @@ def write_report(run):
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'">
 <title>Qwen × R9700 SVG test</title><style>body{{font:17px system-ui,sans-serif;max-width:1100px;margin:auto;padding:24px;background:#f6f5fa;color:#202034}}h1,h2{{line-height:1.2}}table{{border-collapse:collapse;width:100%}}td,th{{padding:10px;border-bottom:1px solid #bbb;text-align:left}}section{{background:white;padding:16px;margin-top:24px;border:1px solid #ccc;border-radius:10px}}.scroll{{overflow:auto}}img{{display:block;background:white}}li{{margin:10px 0}}a{{color:#4636a4}}</style></head><body>
 <h1>Qwen × R9700 SVG test</h1><p><strong>{esc(status['execution'])}</strong> · protocol {esc(manifest['protocol'])} · {esc(manifest['mode'])} · {esc(manifest['deployment'])}</p>
+{failure}
 <p>Four-section completion: <strong>{esc(status['trajectory'])}</strong>. Machine checks do not grade artwork, prove tool compliance, or establish a model ranking.</p>
 <table><tr><th>Section</th><th>Execution</th><th>Machine checks</th><th>Seconds</th></tr>{''.join(rows)}</table>
 <p>{esc(status['timing_scope'])} Usage, tool calls and context are unavailable unless the adapter reports them. No hidden reasoning is inferred.</p>
