@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+runs/
+evidence/
+private-*/
+.env
+.env.*
+auth.json
+*.local.json
+dist/
+build/

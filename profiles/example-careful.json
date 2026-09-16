@@ -1,0 +1,10 @@
+{
+  "format": "svg-bench-profile/1",
+  "name": "Example experiment — validation instructions",
+  "harness": "direct",
+  "protocol": "v0.3-portable",
+  "settings": {"temperature": 0, "top_p": 1, "max_tokens": 8192},
+  "agents_md": "Check deliverable dimensions, required labels, and internal SVG references before finishing. Preserve existing requirements when revising. Report checks you actually performed and any limitations honestly.\n",
+  "external_requirements": {},
+  "note": "Illustrative one-factor profile, not a proven improvement. Evaluate on repeated and held-out tasks."
+}

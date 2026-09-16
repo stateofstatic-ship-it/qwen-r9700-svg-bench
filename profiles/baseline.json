@@ -1,0 +1,10 @@
+{
+  "format": "svg-bench-profile/1",
+  "name": "Baseline — built-in text tools",
+  "harness": "direct",
+  "protocol": "v0.3-portable",
+  "settings": {"temperature": 0, "top_p": 1, "max_tokens": 8192},
+  "agents_md": null,
+  "external_requirements": {},
+  "note": "Diagnostic text-only baseline. Different from the native explicit-renderer v0.2 calibration."
+}

@@ -1,0 +1,12 @@
+{
+  "version": "v0.3-portable",
+  "files": {
+    "C1.txt": "dc43ba11a93febfa95ee7932dc513e46252ce95a9d5fa2285f0763748a4bd30b",
+    "REQUIREMENTS.json": "0083bf5b13cd8a9f4d35bf6e4b5a71335d443d8128483e7e4dfb6ac85c304059",
+    "JUDGE_PROMPT.md": "60347ac077d1335be8da9492df3a0ccd68d6018a4a33ec11a8d4511782974df4",
+    "C2.txt": "8b3dd954cf51136fee115898d2605ad32983066dce772e433bfe063fd4e598fa",
+    "CHANGE_REQUEST.md": "4686813b5c029237ff95896690dd4001b798f039ded2c64fff098df9599e0393",
+    "INITIAL_PROMPT.md": "cd78a9e4d8ea86b874484c6e673da56c192b13480860fff5b40b79c3e0e624d7"
+  },
+  "change": "Relative output path only; separate, non-pooled protocol."
+}

@@ -1,0 +1,4 @@
+# Prompt hashes must not depend on the user's checkout platform.
+* text=auto eol=lf
+*.png binary
+*.zip binary

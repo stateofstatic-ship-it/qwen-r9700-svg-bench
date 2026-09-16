@@ -1,0 +1,97 @@
+{
+  "version": "0.2",
+  "states": [
+    "pass",
+    "partial",
+    "fail",
+    "not_observed",
+    "not_applicable"
+  ],
+  "requirements": [
+    {
+      "id": "native_svg",
+      "criterion": "Native static SVG; no raster, scripts, remote resources, tracing or image generation",
+      "evidence_type": "machine_and_process"
+    },
+    {
+      "id": "canvas",
+      "criterion": "C0-C2: 1440\u00d7960 and matching viewBox; C3: 1024\u00d71024 and matching viewBox",
+      "evidence_type": "machine"
+    },
+    {
+      "id": "scene_identity",
+      "criterion": "Purple fictional robot building red/charcoal open-frame workstation on workbench",
+      "evidence_type": "visual"
+    },
+    {
+      "id": "qwen_label",
+      "criterion": "Qwen label readable at full and half size",
+      "evidence_type": "visual"
+    },
+    {
+      "id": "hardware_label",
+      "criterion": "RADEON AI PRO R9700 readable at full and half size",
+      "evidence_type": "visual"
+    },
+    {
+      "id": "feet_contact",
+      "criterion": "Exactly two robot feet visibly contacting stable red toolbox lid",
+      "evidence_type": "visual"
+    },
+    {
+      "id": "limb_connectivity",
+      "criterion": "Exactly two connected arms and hands",
+      "evidence_type": "visual"
+    },
+    {
+      "id": "grips",
+      "criterion": "One hand at each card end; fingers visibly grip rather than float",
+      "evidence_type": "visual"
+    },
+    {
+      "id": "single_card_blower",
+      "criterion": "One black rectangular GPU with one circular blower intake",
+      "evidence_type": "visual"
+    },
+    {
+      "id": "card_orientation",
+      "criterion": "Card upright above horizontal motherboard",
+      "evidence_type": "visual"
+    },
+    {
+      "id": "contact_slot_alignment",
+      "criterion": "Bottom-edge gold contacts aligned over visible matching expansion slot",
+      "evidence_type": "visual"
+    },
+    {
+      "id": "insertion_clearance",
+      "criterion": "Visible gap and unobstructed insertion path",
+      "evidence_type": "visual"
+    },
+    {
+      "id": "cable_continuity",
+      "criterion": "One continuous purple cable from robot back socket to visible workstation connector",
+      "evidence_type": "visual"
+    },
+    {
+      "id": "cable_occlusion",
+      "criterion": "Cable passes behind chassis with coherent entry/exit",
+      "evidence_type": "visual"
+    },
+    {
+      "id": "depth",
+      "criterion": "Clear coherent depth relationships; schematic hardware accepted",
+      "evidence_type": "visual"
+    },
+    {
+      "id": "composition",
+      "criterion": "Complete unclipped composition; essential relationships legible at half size",
+      "evidence_type": "visual"
+    },
+    {
+      "id": "square_recomposition",
+      "criterion": "C3 only: recompose, do not stretch or crop; preserve other requirements",
+      "evidence_type": "visual"
+    }
+  ]
+}

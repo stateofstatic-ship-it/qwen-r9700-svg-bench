@@ -1,0 +1,12 @@
+{
+  "version": "v0.2",
+  "files": {
+    "C1.txt": "dc43ba11a93febfa95ee7932dc513e46252ce95a9d5fa2285f0763748a4bd30b",
+    "REQUIREMENTS.json": "0083bf5b13cd8a9f4d35bf6e4b5a71335d443d8128483e7e4dfb6ac85c304059",
+    "JUDGE_PROMPT.md": "60347ac077d1335be8da9492df3a0ccd68d6018a4a33ec11a8d4511782974df4",
+    "C2.txt": "8b3dd954cf51136fee115898d2605ad32983066dce772e433bfe063fd4e598fa",
+    "CHANGE_REQUEST.md": "6d943b6f9486ae4f5d17dadaec1e6a6be0dd2e3bb9018e8e4f63491c0a7553b7",
+    "INITIAL_PROMPT.md": "76fc9dc2d8a6886b7cd634d03a728dff1ed58e7ea847abab8cfd2c40d49fa7b6"
+  },
+  "change": "Unchanged original prompt and rubric bytes."
+}

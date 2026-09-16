@@ -1,0 +1,4 @@
+{
+  "command": ["{python}", "{kit}/examples/fixture_adapter.py"],
+  "deployment": {"kind": "synthetic_fixture", "model": null, "runtime": "Python stdlib", "inference": false}
+}
