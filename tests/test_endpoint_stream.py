@@ -75,6 +75,23 @@ class StreamTests(unittest.TestCase):
         self.assertEqual(measured['observation_status'], 'observed')
         self.assertGreater(measured['model_delta_span_seconds'], 0)
 
+    def test_cancellable_idle_reads_resume_without_poisoning_buffer(self):
+        parts = [event({'content': 'first'}), event({}, 'stop'), b'data: [DONE]\n\n']
+        with server(parts, delay=.25) as endpoint:
+            value, measured = endpoint.call_measured('/chat/completions', {'stream': True},
+                cancel_event=threading.Event(), timeout=3)
+        self.assertEqual(value['choices'][0]['message']['content'], 'first')
+        self.assertEqual(measured['observation_status'], 'observed')
+
+    def test_cancellable_idle_read_still_obeys_overall_deadline(self):
+        with server([event({'content': 'first'}), b'data: [DONE]\n\n'], delay=.5) as endpoint:
+            started = time.monotonic()
+            with self.assertRaisesRegex(EndpointError, 'overall deadline') as caught:
+                endpoint.call_measured('/chat/completions', {'stream': True},
+                    cancel_event=threading.Event(), timeout=.2)
+            self.assertLess(time.monotonic() - started, .8)
+            self.assertEqual(caught.exception.telemetry['observation_status'], 'partial')
+
     def test_json_fallback_and_old_call(self):
         with server([b'{"choices": [], "usage": {}}'], 'application/json') as endpoint:
             value, measured = endpoint.call_measured('/chat/completions', {'stream': True})

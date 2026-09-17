@@ -15,6 +15,25 @@ class EndpointError(RuntimeError):
         self.status = status
         self.response = response
 
+class _CancellableSocket:
+    """Poll below SocketIO so idle timeouts do not poison its buffered reader."""
+    def __init__(self, sock, remaining):
+        self._socket, self._remaining = sock, remaining
+
+    def __getattr__(self, name):
+        return getattr(self._socket, name)
+
+    def recv_into(self, *args):
+        while True:
+            self._socket.settimeout(min(.1, self._remaining()))
+            try:
+                return self._socket.recv_into(*args)
+            except TimeoutError:
+                # Retry only an idle receive, never an HTTP request. Check the
+                # cancellation/deadline before retrying; SocketIO sees no timeout.
+                self._remaining()
+
+
 class NoRedirect(request.HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
         raise EndpointError('Endpoint redirects are prohibited')
@@ -66,7 +85,8 @@ class Endpoint:
         Downstream backpressure can delay later reads and total duration.
         on_terminal runs before forwarding a parsed [DONE] block; on_open
         receives the open response for cancellation registration. Cancellation
-        is checked between reads; a caller can shut down the registered socket.
+        is polled during body receives as well as between reads; a caller can
+        also shut down the registered socket.
         DNS/connect/header stalls before on_open still require an outer bound.
         """
         started = time.monotonic()
@@ -109,6 +129,12 @@ class Endpoint:
                 raise EndpointError('Endpoint request/history exceeds 8 MiB')
             req = request.Request(self.url + path, data=data, headers=headers)
             with self.opener.open(req, timeout=remaining()) as response:
+                raw_socket_io = getattr(response.fp, 'raw', None)
+                sock = getattr(raw_socket_io, '_sock', None)
+                if cancel_event is not None and sock is not None:
+                    # Keep the existing header-prefetched buffer and HTTP chunk
+                    # parser. Do not rely on shutdown waking a timed socket read.
+                    raw_socket_io._sock = _CancellableSocket(sock, remaining)
                 if on_open:
                     on_open(response)
                 remaining()

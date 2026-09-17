@@ -1,6 +1,7 @@
 import http.client
 import json
 import os
+import socket
 from pathlib import Path
 import tempfile
 import threading
@@ -188,6 +189,8 @@ class ProxyTests(unittest.TestCase):
             proxy.begin_section('C0', 900)
             response = post(proxy, url, {'messages': [], 'stream': True})
             self.assertIn(b'first', response.readline())
+            # Exercise idle receive retries before cancelling the same reader.
+            time.sleep(.25)
             started = time.monotonic(); proxy.close()
             self.assertLess(time.monotonic() - started, 1)
             self.assertFalse(proxy._active)
@@ -199,6 +202,12 @@ class ProxyTests(unittest.TestCase):
             self.assertEqual(snapshot, {p.name: p.stat().st_mtime_ns for p in state.iterdir()})
             self.assertEqual(len(events), event_count)
             response.close()
+
+    def test_close_finalizes_even_when_socket_shutdown_does_not_wake_read(self):
+        # Reproduce the Windows cancellation failure independently of host OS.
+        # Keep every lifecycle assertion, including private partial telemetry.
+        with patch.object(socket.socket, 'shutdown', return_value=None):
+            self.test_close_interrupts_open_upstream_stall_and_freezes_artifacts()
 
     def test_deadline_and_overrides(self):
         with setup() as (proxy, url, state, events, received):
