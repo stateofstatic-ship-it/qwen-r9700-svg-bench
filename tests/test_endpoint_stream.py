@@ -34,7 +34,7 @@ def server(parts, content_type='text/event-stream', status=200, delay=0):
                     self.wfile.flush()
                     if delay:
                         time.sleep(delay)
-            except (BrokenPipeError, ConnectionResetError):
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
                 pass
 
     httpd = ThreadingHTTPServer(('127.0.0.1', 0), Handler)

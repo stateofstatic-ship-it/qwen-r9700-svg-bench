@@ -75,7 +75,8 @@ class ProxyTests(unittest.TestCase):
             self.assertNotIn('private', telemetry[0]['usage'])
             self.assertNotIn('raw_snapshots', telemetry[0]['runtime'])
             for path in state.iterdir():
-                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                if os.name == 'posix':
+                    self.assertEqual(path.stat().st_mode & 0o777, 0o600)
                 self.assertNotIn('upstream-secret', path.read_text())
 
     def test_true_stream_and_concurrency(self):
@@ -201,7 +202,11 @@ class ProxyTests(unittest.TestCase):
 
     def test_deadline_and_overrides(self):
         with setup() as (proxy, url, state, events, received):
-            proxy.begin_section('C0', .001); time.sleep(.005)
+            proxy.begin_section('C0', .01)
+            # Wait for the clock used by the deadline, not a sub-tick sleep on Windows.
+            deadline = proxy._phase[1]
+            while time.monotonic() <= deadline:
+                time.sleep(.01)
             with self.assertRaises(error.HTTPError) as caught: post(proxy, url)
             self.assertEqual(caught.exception.code, 409)
             proxy.end_section()
