@@ -109,7 +109,7 @@ def write_telemetry(run):
         'missing':'Null/unavailable means not measured, never zero. Native/custom harnesses must report the same telemetry event contract.'},
         'sections':sections,'requests':rows}
     (run/'telemetry.json').write_text(json.dumps(document,indent=2)+'\n',encoding='utf-8')
-    fields = ['checkpoint','work_type','request','trigger','outcome','tool_names','client_transport','client_duration_seconds',
+    fields = ['checkpoint','work_type','request','trigger','outcome','tool_names','client_transport','client_measurement_scope','client_duration_seconds',
               'client_time_to_first_model_delta_seconds','runtime_status','runtime_source','runtime_unavailable_reason',
               *METRICS,'prompt_tokens','completion_tokens','reasoning_tokens']
     with (run/'telemetry.csv').open('w',newline='',encoding='utf-8') as stream:
@@ -117,11 +117,11 @@ def write_telemetry(run):
         for row in rows:
             flat = {key:row.get(key) for key in fields[:6]}
             flat['tool_names'] = ','.join(str(x) for x in (row.get('tool_names') or []))
-            flat.update({f'client_{key}':row['client'].get(key) for key in ('transport','duration_seconds','time_to_first_model_delta_seconds')})
+            flat.update({f'client_{key}':row['client'].get(key) for key in ('transport','measurement_scope','duration_seconds','time_to_first_model_delta_seconds')})
             flat.update({f'runtime_{key}':row['runtime'].get(key) for key in ('status','source','unavailable_reason')})
             flat.update({key:row['runtime'].get(key) for key in METRICS})
             flat.update({key:row['usage'].get(key) for key in ('prompt_tokens','completion_tokens')})
             flat['reasoning_tokens'] = row.get('token_details',{}).get('reasoning_tokens')
             # Avoid spreadsheet formulas from custom-adapter labels when exporting CSV.
-            writer.writerow({k:("'"+v if isinstance(v,str) and v[:1] in '=+-@\t\r' else v) for k,v in flat.items()})
+            writer.writerow({k:("'"+v if isinstance(v,str) and v and v[:1] in '=+-@\t\r' else v) for k,v in flat.items()})
     return document

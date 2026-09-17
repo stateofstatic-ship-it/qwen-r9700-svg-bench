@@ -25,3 +25,19 @@ References: [OpenCode CLI](https://opencode.ai/docs/cli/),
 [JSON event source](https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/cli/cmd/run.ts),
 [config](https://opencode.ai/docs/config/), [permissions](https://opencode.ai/docs/permissions/).
 Codex flags were checked using installed `codex exec --help` / `exec resume --help`.
+
+## DeepSeek Harness
+
+Select **DeepSeek Harness → model server** in the browser launcher, discover the loaded model, and select a saved DeepSeek profile. Or:
+
+```bash
+python benchmark.py --harness dsh --server http://127.0.0.1:8000/v1 --profile profiles/dsh-gestalt-standard.json
+```
+
+The connector currently targets installed `@deepseek-ai/dsh` **0.1.5-rc.2** and rejects unverified versions. It uses that runtime’s native agent loop and tools. A small Cordis runner retains one real native agent/session through all four exact prompts; it does not invoke the stock one-shot headless runner four times. Settings, profile and native session state are isolated under the new run's private adapter directory. No package installation or global settings change is performed.
+
+The supplied Gestalt standard profile requests temperature 0.8, top-p 0.95, top-k 20, min-p 0, presence penalty 0, repetition penalty 1, thinking/history preservation, xhigh effort and 65,536 output tokens per request. It does not install the custom xhigh-verify Jinja template: configure that on your server, confirm its rendered instructions, and retain its hash as runtime evidence. A filename containing xhigh alone does not prove the effort setting.
+
+An authenticated loopback streaming proxy applies and records these explicit sampling overrides while preserving native messages and tools. It forwards streamed bytes immediately; it does not replace the native harness with the built-in tool loop. Per-request timings describe proxy-to-upstream observations; harness orchestration/tool time remains in section wall time. See [telemetry definitions](TELEMETRY.md).
+
+Benchmark web/helper/title-generation plugins are disabled. Native workspace-write and approval-never policies are requested; they are not complete read/network confinement. Keep this diagnostic native-tool condition separate from the built-in restricted text-tool profile. Raw native sessions and request traces may contain private information and are not uploaded automatically.

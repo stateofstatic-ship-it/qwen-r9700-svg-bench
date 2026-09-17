@@ -14,20 +14,24 @@ def main():
     mode.add_argument('--demo',action='store_true',help='Run the synthetic no-inference demo')
     mode.add_argument('--endpoint',help='OpenAI-compatible /v1 endpoint; supplies the built-in tool harness')
     mode.add_argument('--adapter',type=Path,help='External harness adapter JSON config')
-    mode.add_argument('--harness',choices=['codex','opencode'],help='Use an installed configured native harness')
+    mode.add_argument('--harness',choices=['codex','opencode','dsh'],help='Use an installed configured native harness')
     mode.add_argument('--manual',action='store_true',help='Fallback: copy/paste prompts into any agent')
     mode.add_argument('--ui',action='store_true',help='Open the local browser launcher (default)')
+    parser.add_argument('--server',help='OpenAI-compatible /v1 server for --harness dsh; other native harnesses use their installed configuration')
     parser.add_argument('--model',help='Served model identifier; inferred only when exactly one is available')
     parser.add_argument('--label',default='unspecified',help='User-facing configuration label for manual mode')
     parser.add_argument('--profile',type=Path,help='Load a named profile JSON file')
     parser.add_argument('--runs-dir',type=Path,default=Path('runs'))
     parser.add_argument('--turn-seconds',type=float,default=900)
-    parser.add_argument('--max-tokens',type=int,default=8192,help='Per-request output token ceiling in the built-in harness')
+    parser.add_argument('--max-tokens',type=int,default=8192,help='Per-request output token ceiling for built-in/DeepSeek harnesses')
     parser.add_argument('--protocol',choices=['v0.3-portable','v0.2'],default='v0.3-portable')
     parser.add_argument('--no-open',action='store_true',help='Do not open the local browser')
     parser.add_argument('--no-stream',action='store_true',help='Use buffered endpoint responses; client first-delta timing unavailable')
     parser.add_argument('--runtime-metrics',choices=('auto','vllm','off'),default='auto',help='Same-origin runtime timing collection for direct endpoints')
     args=parser.parse_args()
+    if args.server and args.harness!='dsh': parser.error('--server is only used with --harness dsh')
+    if args.harness=='dsh' and (args.no_stream or args.runtime_metrics!='auto'): parser.error('DeepSeek preserves native streaming and currently uses automatic runtime metrics; these overrides apply to the built-in harness only')
+    if args.harness=='dsh' and not args.server: parser.error('--harness dsh requires --server http://host:port/v1')
     if args.turn_seconds<=0 or args.max_tokens<=0: parser.error('Budgets must be positive')
     from qwen_bench.core import KIT,execute
     if args.ui or not any((args.demo,args.endpoint,args.adapter,args.manual,args.harness)):
@@ -47,6 +51,11 @@ def main():
     elif args.adapter:
         config=json.loads(args.adapter.read_text(encoding='utf-8'));selected='adapter'
         config['command']=[arg.replace('{config_dir}',str(args.adapter.resolve().parent)) for arg in config.get('command',[])]
+    elif args.harness=='dsh':
+        config={'command':['{python}','{kit}/qwen_bench/dsh_adapter.py'],
+                'deployment':{'harness':'dsh','endpoint':args.server,'model':args.model},
+                'options':{'harness':'dsh','endpoint':args.server,'model':args.model,'max_tokens':args.max_tokens}}
+        selected='adapter'
     elif args.harness:
         config={'command':['{python}','{kit}/qwen_bench/harness_adapter.py'],
                 'deployment':{'harness':args.harness,'model':args.model,'server':'existing harness configuration'},

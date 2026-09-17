@@ -51,7 +51,7 @@ def write_report(run):
             'Output includes reasoning when the provider includes it. Missing measurements are not zero.</p>'
             '<p>Client first delta includes transport and possible parser buffering; it is not engine TTFT. '
             'vLLM shared-metric deltas are conditionally attributed only after idle/count/token checks; use a dedicated idle server. '
-            'Native harness timings remain unavailable unless the connector reports them.</p>'
+            'DeepSeek timings are measured from its local proxy to the upstream server, not from the harness UI. Other native harness timings remain unavailable unless the connector reports them.</p>'
             '<p><a href="telemetry.json">Full telemetry and definitions (JSON)</a> · '
             '<a href="telemetry.csv" download>Per-request telemetry (CSV)</a>. '
             'Exports include timing sources, availability, token counts and request/tool classifications. Detailed arrival timings and runtime snapshots are retained in private adapter state.</p>')

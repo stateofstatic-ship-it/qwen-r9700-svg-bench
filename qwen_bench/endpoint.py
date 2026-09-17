@@ -9,9 +9,11 @@ MAX_RESPONSE = 2 * 1024 * 1024
 MAX_STREAM = 64 * 1024 * 1024
 
 class EndpointError(RuntimeError):
-    def __init__(self, message, telemetry=None):
+    def __init__(self, message, telemetry=None, status=None, response=None):
         super().__init__(message)
         self.telemetry = telemetry
+        self.status = status
+        self.response = response
 
 class NoRedirect(request.HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
@@ -51,16 +53,27 @@ class Endpoint:
             raise EndpointError('Endpoint returned an invalid object or API error')
         return value
 
-    def call_measured(self, path, payload=None, timeout=20):
+    def call_measured(self, path, payload=None, timeout=20, on_response=None, on_data=None,
+                      on_terminal=None, on_open=None, cancel_event=None):
         """Measure client arrivals, not engine TTFT or per-token latency.
 
         No retry is attempted. JSON fallback has no observable delta timings.
         An SSE response must terminate with [DONE], after finished choices.
+        Optional callbacks receive (status, normalized content type) and each
+        bounded raw read1 byte block, respectively. Callback failures stop the
+        request without retry; HTTP error bodies are never forwarded.
+        Arrival timestamps are captured before parsing/downstream callbacks.
+        Downstream backpressure can delay later reads and total duration.
+        on_terminal runs before forwarding a parsed [DONE] block; on_open
+        receives the open response for cancellation registration. Cancellation
+        is checked between reads; a caller can shut down the registered socket.
+        DNS/connect/header stalls before on_open still require an outer bound.
         """
         started = time.monotonic()
         arrivals = []
         telemetry = {
             'transport': None, 'duration_seconds': 0.0,
+            'measurement_scope': 'benchmark_adapter_to_endpoint',
             'time_to_first_model_delta_seconds': None,
             'model_delta_span_seconds': None, 'model_delta_events': 0,
             'delta_arrival_seconds': arrivals, 'observation_status': 'unavailable',
@@ -75,6 +88,8 @@ class Endpoint:
                 telemetry['model_delta_span_seconds'] = arrivals[-1] - arrivals[0]
 
         def remaining():
+            if cancel_event is not None and cancel_event.is_set():
+                raise EndpointError('Endpoint request cancelled')
             left = timeout - (time.monotonic() - started)
             if left <= 0:
                 raise EndpointError('Endpoint overall deadline exceeded')
@@ -94,9 +109,13 @@ class Endpoint:
                 raise EndpointError('Endpoint request/history exceeds 8 MiB')
             req = request.Request(self.url + path, data=data, headers=headers)
             with self.opener.open(req, timeout=remaining()) as response:
+                if on_open:
+                    on_open(response)
                 remaining()
                 streaming = response.headers.get_content_type() == 'text/event-stream'
                 telemetry['transport'] = 'sse' if streaming else 'json'
+                if on_response:
+                    on_response(response.status, 'text/event-stream' if streaming else 'application/json')
                 raw = bytearray()
                 wire_bytes = 0
                 assembled_text_bytes = 0
@@ -193,7 +212,7 @@ class Endpoint:
                             invalid()
                         choice['finish_reason'] = reason
                     if meaningful:
-                        arrivals.append(time.monotonic() - started)
+                        arrivals.append(block_arrived - started)
 
                 while True:
                     # read1 returns available bytes without waiting to fill a buffer.
@@ -204,6 +223,7 @@ class Endpoint:
                         sock.settimeout(left)
                     limit = MAX_STREAM if streaming else MAX_RESPONSE
                     block = response.read1(min(65536, limit + 1 - wire_bytes))
+                    block_arrived = time.monotonic()
                     remaining()
                     if not block:
                         break
@@ -221,8 +241,12 @@ class Endpoint:
                                 event()
                             elif line.startswith('data:'):
                                 event_lines.append(line[5:].removeprefix(' '))
-                        if done:
-                            break
+                    if done and on_terminal:
+                        on_terminal()
+                    if on_data:
+                        on_data(block)
+                    if done:
+                        break
                 if streaming:
                     if pending or event_lines or not done:
                         raise EndpointError('Endpoint returned a truncated streaming response')
@@ -257,7 +281,12 @@ class Endpoint:
                 message = 'Endpoint returned malformed data or request is invalid'
             else:
                 message = 'Endpoint connection failed or timed out'
-            raise EndpointError(message, telemetry=telemetry) from None
+            partial = locals().get('assembled')
+            if partial is not None and 'choices' in locals():
+                partial['choices'] = list(choices.values())
+            raise EndpointError(message, telemetry=telemetry,
+                                status=exc.code if isinstance(exc, error.HTTPError) else None,
+                                response=partial) from None
 
     def select_model(self, model=None):
         metadata = self.call('/models')

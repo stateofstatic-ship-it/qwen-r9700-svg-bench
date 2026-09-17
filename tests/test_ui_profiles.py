@@ -20,6 +20,16 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(len(loaded['agents_md_sha256']),64)
         self.assertEqual(config['profile_receipt']['runtime_effective_settings'],'not_independently_attested')
         with self.assertRaises(ValueError):apply_profile({},loaded,'codex')
+    def test_gestalt_standard_dsh_settings(self):
+        loaded=load_profile(KIT/'profiles/dsh-gestalt-standard.json')
+        config=apply_profile({'options':{'endpoint':'http://localhost/v1','max_tokens':8192}},loaded,'dsh')
+        self.assertEqual(config['options']['max_tokens'],65536)
+        self.assertEqual(config['options']['temperature'],.8)
+        self.assertEqual(config['options']['top_p'],.95)
+        self.assertEqual(config['options']['effort'],'xhigh')
+        self.assertTrue(config['options']['request_options']['chat_template_kwargs']['preserve_thinking'])
+        with self.assertRaises(ValueError):apply_profile({},loaded,'direct')
+
     def test_unknown_setting_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             p=Path(directory)/'profile.json';p.write_text(json.dumps({'format':'svg-bench-profile/1','harness':'direct','settings':{'pretend_plugin_enabled':True}}))
@@ -49,6 +59,21 @@ class UITests(unittest.TestCase):
                     execute.assert_called_once()
                     self.assertEqual(observed,[(expected,[f'Effective output-token ceiling per model request: {expected} (from {source}; requested limit, not server-attested).'])])
                     self.assertIsNone(launcher.error)
+
+    def test_dsh_uses_native_adapter_with_server_and_profile(self):
+        with tempfile.TemporaryDirectory() as directory:
+            launcher=Launcher(directory)
+            with patch('qwen_bench.ui.execute',return_value=(Path(directory),{})) as execute:
+                launcher.start({'harness':'dsh','endpoint':'http://localhost:8058/v1','model':'test-model',
+                                'profile':'dsh-gestalt-standard.json','max_tokens':8192})
+                launcher.thread.join(timeout=5)
+            self.assertIsNone(launcher.error)
+            config=execute.call_args.kwargs['config']
+            self.assertTrue(config['command'][-1].endswith('/dsh_adapter.py'))
+            self.assertEqual(config['options']['endpoint'],'http://localhost:8058/v1')
+            self.assertEqual(config['options']['max_tokens'],65536)
+            self.assertEqual(config['profile']['definition']['harness'],'dsh')
+            self.assertEqual(config['deployment']['harness'],'dsh')
 
     def test_launcher_auth_and_fixture_flow(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -1,0 +1,27 @@
+{
+  "format": "svg-bench-profile/1",
+  "name": "Gestalt standard \u00b7 DeepSeek Harness \u00b7 xhigh",
+  "harness": "dsh",
+  "protocol": "v0.3-portable",
+  "settings": {
+    "effort": "xhigh",
+    "max_tokens": 65536,
+    "temperature": 0.8,
+    "top_p": 0.95,
+    "request_options": {
+      "top_k": 20,
+      "min_p": 0.0,
+      "presence_penalty": 0.0,
+      "repetition_penalty": 1.0,
+      "chat_template_kwargs": {
+        "enable_thinking": true,
+        "reasoning_effort": "xhigh",
+        "preserve_thinking": true
+      }
+    }
+  },
+  "external_requirements": {
+    "chat_template": "Custom xhigh-verify template configured on the model server; confirm rendered instructions and record template hash before a trial."
+  },
+  "note": "Sampling matches the Gestalt standard arm: temperature 0.8, top-p 0.95, top-k 20, min-p 0, presence penalty 0, repetition penalty 1, thinking and reasoning-history preservation enabled. Uses native DeepSeek tools in one session with benchmark web/helper tools disabled. This is a separate harness/profile condition, not equivalent to the built-in text-tool track."
+}

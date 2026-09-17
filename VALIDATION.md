@@ -1,6 +1,6 @@
 # Draft validation — 2026-09-16
 
-**Verified locally on Linux:** 66 no-inference tests; JavaScript syntax check; source launcher demo; actual in-app-browser demo from Run through the four-section report. A live vLLM tokenizer also accepts and preserves a synthetic reasoning-history marker without inference.
+**Verified locally on Linux:** 88 no-inference tests; JavaScript syntax check; source launcher demo; actual in-app-browser demo from Run through the four-section report. A live vLLM tokenizer also accepts and preserves a synthetic reasoning-history marker without inference.
 
 Tests cover direct HTTP client/agent history using a fake localhost endpoint, provider text-reasoning replay across tool/user continuations without public event disclosure, native Codex/OpenCode continuation using fake executables, exact prompts, frozen profiles and instruction protection, artifact checks, errors/incomplete generation, cancellation without another dispatch, retained-pipe cleanup, denied/failed cleanup preserving the original error and report, requested/effective-setting distinctions, profile budget precedence and launcher action-token checks.
 
@@ -19,3 +19,5 @@ The first real attempts exposed an insufficient 8,192-token budget for that conf
 **Scope limits:** built-in profile is text-only/restricted file tools; metadata preflight cannot prove tool-parser compatibility; native harness controls are requested but not independently certified. Server/plugin/template requirements are not automatically applied. Source-only packaging excludes generated runs and credentials, but user-created run folders and arbitrary profile metadata are not sanitized exports.
 
 The earlier hosted calibration and all private artifacts remain outside this repository. Portable v0.3-path/tool profiles must not be pooled with those v0.2 experiments as identical conditions.
+
+**DeepSeek connector checks:** real installed DSH 0.1.5-rc.2 against a synthetic local provider: zero-inference startup, four exact checked-in prompts, one native session, reasoning/tool history replay, absolute-script invocation, telemetry proxy streaming, and cancellation of stock detached tool descendants. No real DSH model trial is claimed by these synthetic checks. Native read/network isolation and external-service-manager process containment are not certified.

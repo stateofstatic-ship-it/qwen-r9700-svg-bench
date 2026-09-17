@@ -17,8 +17,9 @@ Try the plumbing without using a model: `python benchmark.py --demo`. Or choose 
 ## What works now
 
 - Built-in OpenAI-compatible Chat Completions client with restricted file/structural-check tools; **text-only diagnostic profile**, not the native visual-agent primary track. API metadata discovery is no-inference; it cannot prove tool-calling compatibility. [vLLM setup](https://docs.vllm.ai/en/latest/features/tool_calling/) and [llama.cpp setup](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md) may require model-specific tool templates/parsers.
+- DeepSeek Harness connector keeps one native agent across all four sections and records requests/telemetry through a local streaming proxy. Select **DeepSeek Harness → model server** and the **Gestalt standard — DeepSeek xhigh** profile. Requires an installed compatible `dsh`; no global harness settings are changed. See [connectors](HARNESS-CONNECTORS.md).
 - Codex CLI / OpenCode connectors use each installed harness's configured provider. They do not automatically make a chat-only endpoint compatible with a different harness API. See [connectors](HARNESS-CONNECTORS.md).
-- [Performance telemetry](TELEMETRY.md): per-request/section streaming latency, token counts, and supported runtime TTFT/prefill/decode rates with explicit coverage and JSON/CSV exports. Native connectors currently lack engine timing; unavailable is never reported as zero.
+- [Performance telemetry](TELEMETRY.md): per-request/section streaming latency, token counts, and supported runtime TTFT/prefill/decode rates with explicit coverage and JSON/CSV exports. Codex/OpenCode connectors currently lack engine timing; unavailable is never reported as zero.
 - [Saved profiles](PROFILES.md) freeze instructions, requested settings and external requirements. Confirmed application is separate from requested configuration.
 - [Manual fallback](USAGE.md) and an [adapter contract](ADAPTERS.md) for other harnesses. No universal zero-configuration harness claim.
 

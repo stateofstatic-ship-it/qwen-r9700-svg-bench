@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from .core import safe_config
 
-ALLOWED_SETTINGS={'temperature','top_p','seed','max_tokens','max_requests','max_tool_steps','effort','request_options','stream','stream_usage','runtime_metrics'}
+ALLOWED_SETTINGS={'temperature','top_p','seed','max_tokens','max_requests','max_tool_steps','effort','request_options','stream','stream_usage','runtime_metrics','context_window'}
 
 
 def load_profile(path):
@@ -18,7 +18,7 @@ def load_profile(path):
     safe_config(profile)
     settings=profile.get('settings',{})
     if not isinstance(settings,dict) or set(settings)-ALLOWED_SETTINGS:raise ValueError('Unsupported profile setting')
-    if profile.get('harness') not in ('direct','codex','opencode'):raise ValueError('Unsupported profile harness')
+    if profile.get('harness') not in ('direct','codex','opencode','dsh'):raise ValueError('Unsupported profile harness')
     if profile.get('protocol','v0.3-portable')!='v0.3-portable':raise ValueError('Portable profiles use their separately versioned relative-path protocol')
     if not isinstance(profile.get('external_requirements',{}),dict):raise ValueError('External requirements must be an object')
     text=profile.get('agents_md')
@@ -35,14 +35,16 @@ def apply_profile(config,loaded,harness):
     if profile['harness']!=harness:raise ValueError('Profile harness does not match selected harness')
     result=copy.deepcopy(config);options=result.setdefault('options',{})
     settings=profile.get('settings',{})
-    if harness!='direct' and set(settings)-{'effort'}:
+    if harness=='dsh' and set(settings)-{'effort','temperature','top_p','max_tokens','max_requests','request_options','context_window','seed'}:
+        raise ValueError('Unsupported DeepSeek profile setting')
+    if harness not in ('direct','dsh') and set(settings)-{'effort'}:
         raise ValueError('This native harness connector currently applies effort only; sampling must be configured in the harness and recorded as an external requirement')
     for key,value in settings.items():
         options['reasoning_effort' if key=='effort' and harness=='direct' else key]=value
     result['profile']=loaded
     result['profile_receipt']={'name':profile.get('name'),'profile_sha256':loaded['source_sha256'],
         'agents_md_sha256':loaded['agents_md_sha256'],'requested_settings':settings,
-        'settings_delivery':'Direct: frozen request payload; native: explicit CLI arguments. Runtime application requires runtime evidence; not assumed.',
+        'settings_delivery':'Direct: frozen request payload; DeepSeek: isolated native config plus recorded local proxy overrides; other native: explicit CLI arguments. Runtime application requires runtime evidence; not assumed.',
         'runtime_effective_settings':'not_independently_attested',
         'external_requirements':{key:{'requested':value,'status':'unverified_external_requirement'} for key,value in profile.get('external_requirements',{}).items()},
         'comparability':'Separate profile/system condition; not a model-only comparison or validated real-world improvement'}

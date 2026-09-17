@@ -116,7 +116,7 @@ def execute(*, runs_dir, mode='manual', config=None, protocol='v0.3-portable',
         save(run/'profile-receipt.json',config['profile_receipt'])
         if loaded.get('agents_md_text') is not None:
             (workspace/'AGENTS.md').write_bytes(loaded['agents_md_text'].encode('utf-8'))
-    source_hashes = {str(p.relative_to(KIT)):sha(p) for p in [KIT/'benchmark.py',*sorted((KIT/'qwen_bench').glob('*.py'))]}
+    source_hashes = {str(p.relative_to(KIT)):sha(p) for p in [KIT/'benchmark.py',*sorted(p for p in (KIT/'qwen_bench').iterdir() if p.suffix in ('.py','.mjs'))]}
     for name in source_hashes:
         target=run/'frozen/kit'/name; target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(KIT/name,target)
     command = [arg.replace('{python}',sys.executable).replace('{kit}',str(KIT)) for arg in config.get('command',[])]
