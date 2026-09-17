@@ -14,19 +14,31 @@ from qwen_bench.endpoint_adapter import Adapter
 
 class EndpointTests(unittest.TestCase):
     def setUp(self):
-        self.posts=[]; self.responses=[]; self.models=['fake-model']; self.status=200
+        self.posts=[]; self.responses=[]; self.models=['fake-model']; self.status=200; self.streaming=False
         owner=self
         class Handler(BaseHTTPRequestHandler):
             def log_message(self,*args): pass
             def reply(self,value,status=200):
                 body=json.dumps(value).encode(); self.send_response(status); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body)
             def do_GET(self):
+                if self.path == '/metrics':
+                    self.reply({},404);return
                 owner.assertEqual(self.path,'/v1/models')
                 self.reply({'data':[{'id':x} for x in owner.models]})
             def do_POST(self):
                 owner.assertEqual(self.path,'/v1/chat/completions')
                 owner.posts.append(json.loads(self.rfile.read(int(self.headers['Content-Length']))))
-                self.reply(owner.responses.pop(0),owner.status)
+                response=owner.responses.pop(0)
+                if owner.streaming:
+                    self.send_response(200);self.send_header('Content-Type','text/event-stream');self.end_headers()
+                    message=response['choices'][0]['message']
+                    for index,call in enumerate(message.get('tool_calls',[])): call['index']=index
+                    chunks=[{'choices':[{'index':0,'delta':message,'finish_reason':None}]},
+                            {'choices':[{'index':0,'delta':{},'finish_reason':response['choices'][0]['finish_reason']}]},
+                            {'choices':[],'usage':response['usage']}]
+                    for chunk in chunks:self.wfile.write(('data: '+json.dumps(chunk)+'\n\n').encode())
+                    self.wfile.write(b'data: [DONE]\n\n');return
+                self.reply(response,owner.status)
         self.server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
         self.thread=threading.Thread(target=self.server.serve_forever,daemon=True); self.thread.start()
         self.url=f'http://127.0.0.1:{self.server.server_port}/v1'
@@ -60,6 +72,10 @@ class EndpointTests(unittest.TestCase):
         self.assertEqual(self.posts[0]['chat_template_kwargs'],{'enable_thinking':False})
         for name in ('AGENTS.md','agents.md','AgEnTs.Md'):
             with self.assertRaises(EndpointError):self.adapter.tool('write_file',{'path':name,'content':'change'})
+    def test_streaming_core_endpoint_trajectory(self):
+        self.streaming=True
+        self.test_actual_core_endpoint_profile_trajectory()
+
     def test_actual_core_endpoint_profile_trajectory(self):
         from qwen_bench.core import execute,KIT
         from qwen_bench.profiles import load_profile,apply_profile
@@ -75,11 +91,34 @@ class EndpointTests(unittest.TestCase):
         self.assertEqual(status['trajectory'],'completed',status)
         self.assertEqual(status['machine_verification'],'verified',status)
         self.assertEqual(len(self.posts),8)
+        telemetry=json.loads((run/'telemetry.json').read_text())
+        self.assertEqual(len(telemetry['requests']),8)
+        self.assertEqual(telemetry['sections'][0]['completion_tokens']['value'],6)
+        self.assertEqual(telemetry['sections'][0]['client_first_model_delta_seconds']['count'],2 if self.streaming else 0)
+        self.assertIn('Performance by task section',(run/'report.html').read_text())
         self.assertEqual(self.posts[0]['messages'][0]['role'],'system')
         self.assertEqual(len([m for m in self.posts[-1]['messages'] if m['role']=='user']),4)
         manifest=json.loads((run/'manifest.json').read_text())
         self.assertEqual(manifest['adapter_preflight']['model'],'fake-model')
         self.assertEqual(json.loads((run/'profile-receipt.json').read_text())['runtime_effective_settings'],'not_independently_attested')
+    def test_telemetry_stays_bounded_and_deadline_failure_is_preserved(self):
+        self.preflight()
+        response=self.response();response['usage']['extension']='x'*(1024*1024)
+        self.responses=[response]
+        self.adapter.turn(self.turn_request())
+        event=next(e for e in self.events if e['type']=='telemetry')
+        self.assertNotIn('extension',event['usage'])
+        self.assertLess(len(json.dumps(event)),1024*1024)
+        import time
+        from unittest.mock import patch
+        with patch.object(self.adapter.metrics,'before',side_effect=lambda:time.sleep(.02)):
+            request=self.turn_request(session=self.adapter.session);request['timeout_seconds']=.005
+            with self.assertRaisesRegex(EndpointError,'before inference'):
+                self.adapter.turn(request)
+        event=[e for e in self.events if e['type']=='telemetry'][-1]
+        self.assertEqual(event['outcome'],'transport_failed')
+        self.assertEqual(event['client'],{})
+
     def test_metadata_only_and_model_selection(self):
         self.preflight(); self.assertEqual(self.posts,[])
         self.assertIn('not yet proven',self.events[-1]['controls'])

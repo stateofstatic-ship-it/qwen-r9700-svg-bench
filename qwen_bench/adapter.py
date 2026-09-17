@@ -97,7 +97,7 @@ class CommandAdapter:
                     self.sent.join(timeout=min(.1, max(0, deadline-time.monotonic())))
                     if self.sent.is_alive(): raise AdapterError('Terminal event arrived before request was consumed')
                 return event
-            if event['type'] not in ('turn.started','tool.started','tool.completed','assistant.message','usage','adapter.event'):
+            if event['type'] not in ('turn.started','tool.started','tool.completed','assistant.message','usage','adapter.event','telemetry'):
                 raise AdapterError('Unexpected adapter event type: '+event['type'])
 
     def set_phase(self, phase):

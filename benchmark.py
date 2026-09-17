@@ -25,6 +25,8 @@ def main():
     parser.add_argument('--max-tokens',type=int,default=8192,help='Per-request output token ceiling in the built-in harness')
     parser.add_argument('--protocol',choices=['v0.3-portable','v0.2'],default='v0.3-portable')
     parser.add_argument('--no-open',action='store_true',help='Do not open the local browser')
+    parser.add_argument('--no-stream',action='store_true',help='Use buffered endpoint responses; client first-delta timing unavailable')
+    parser.add_argument('--runtime-metrics',choices=('auto','vllm','off'),default='auto',help='Same-origin runtime timing collection for direct endpoints')
     args=parser.parse_args()
     if args.turn_seconds<=0 or args.max_tokens<=0: parser.error('Budgets must be positive')
     from qwen_bench.core import KIT,execute
@@ -38,7 +40,7 @@ def main():
         if args.protocol=='v0.2': parser.error('Built-in harness uses relative paths: choose v0.3-portable')
         config={'command':['{python}','-m','qwen_bench.endpoint_adapter'],
                 'deployment':{'endpoint':args.endpoint,'model':args.model,'harness':'builtin-text-tools-v1'},
-                'options':{'endpoint':args.endpoint,'model':args.model,'max_tokens':args.max_tokens}}
+                'options':{'endpoint':args.endpoint,'model':args.model,'max_tokens':args.max_tokens,'stream':not args.no_stream,'runtime_metrics':args.runtime_metrics}}
         # -m resolution must not depend on the adapter process's private cwd.
         config['command']=['{python}','{kit}/qwen_bench/endpoint_adapter.py']
         selected='adapter'

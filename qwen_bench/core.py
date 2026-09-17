@@ -14,6 +14,7 @@ import uuid
 from .adapter import CommandAdapter, AdapterError
 from .checks import inspect, MAX_SVG_BYTES
 from .report import write_report
+from .telemetry import write_telemetry
 
 KIT = Path(__file__).resolve().parent.parent
 EXPECTED = ['C0','C1','C2','C3']
@@ -147,6 +148,12 @@ def execute(*, runs_dir, mode='manual', config=None, protocol='v0.3-portable',
         line=json.dumps(row,ensure_ascii=False)+'\n';events.write(line);events.flush()
         if phase in EXPECTED:
             with (run/'checkpoints'/phase/'events.jsonl').open('a',encoding='utf-8') as section: section.write(line)
+        if origin == 'adapter' and event.get('type') == 'telemetry':
+            client = event.get('client') or {}
+            usage = event.get('usage') or {}
+            duration = client.get('duration_seconds')
+            detail = f'{duration:.1f}s' if isinstance(duration,(int,float)) else 'duration unavailable'
+            print_fn(f"{phase} request {event.get('request')}: {detail}; output tokens {usage.get('completion_tokens','unavailable')}; telemetry saved.")
 
     session=None
     try:
@@ -227,6 +234,7 @@ def execute(*, runs_dir, mode='manual', config=None, protocol='v0.3-portable',
         events.close()
         aggregate(status,sorted(p.name for p in (run/'checkpoints').iterdir()))
         save(run/'status.json',status)
+        write_telemetry(run)
         report=write_report(run)
         print_fn('Report: '+str(report))
         print_fn('Execution: '+status['execution']+'; four-section trajectory: '+status['trajectory']+'; machine verification: '+status['machine_verification'])

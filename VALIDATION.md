@@ -1,6 +1,6 @@
 # Draft validation — 2026-09-16
 
-**Verified locally on Linux:** 42 no-inference tests; JavaScript syntax check; source launcher demo; actual in-app-browser demo from Run through the four-section report. A live vLLM tokenizer also accepts and preserves a synthetic reasoning-history marker without inference.
+**Verified locally on Linux:** 66 no-inference tests; JavaScript syntax check; source launcher demo; actual in-app-browser demo from Run through the four-section report. A live vLLM tokenizer also accepts and preserves a synthetic reasoning-history marker without inference.
 
 Tests cover direct HTTP client/agent history using a fake localhost endpoint, provider text-reasoning replay across tool/user continuations without public event disclosure, native Codex/OpenCode continuation using fake executables, exact prompts, frozen profiles and instruction protection, artifact checks, errors/incomplete generation, cancellation without another dispatch, retained-pipe cleanup, denied/failed cleanup preserving the original error and report, requested/effective-setting distinctions, profile budget precedence and launcher action-token checks.
 
@@ -11,6 +11,8 @@ Reproduce: `python -m unittest discover -s tests -v` and `python benchmark.py --
 **Verified for one real deployment:** a fresh public GitHub download completed all four sections through the web UI against an existing Qwen/vLLM endpoint, using the text-only built-in harness with a 32,768-token request ceiling. Exact prompts, frozen source, actual reasoning/tool history, checkpoints, eight report previews and clean shutdown were checked. One malformed tool call was returned to the model and successfully repaired. Earlier incomplete attempts were preserved; no model ranking or universal compatibility claim follows from this trial.
 
 The first real attempts exposed an insufficient 8,192-token budget for that configuration and an omitted provider reasoning-history field. Reasoning replay is now fixed and regression-tested. Tests and live tokenizer checks passed before the complete retest; raw model artifacts and traces remain private, outside this repository.
+
+**Telemetry verified:** synthetic streaming/JSON fallback and full four-section telemetry export tests; bounds, partial failures, coverage/weighted rates and shared-metric contamination tests; revised browser demo report. One tiny live Qwen/vLLM request verified SSE usage and conditionally attributed server TTFT, queue, prefill and decode measurements. This is an instrumentation smoke check, not a speed benchmark. The earlier full SVG run used buffered transport and cannot retrospectively supply these engine timings. No new full SVG run or sweep was launched. Native engine telemetry remains unavailable; see [telemetry scope](TELEMETRY.md).
 
 **Not run:** real native connector execution, interactive Windows/macOS desktop/browser use, packaged standalone binaries, representative performance/grade calibration or predictive validation.
 

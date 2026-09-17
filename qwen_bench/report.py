@@ -25,6 +25,36 @@ def write_report(run):
             w,h = check['expected_dimensions']
             preview = f'<p>Full-size view (scroll horizontally on small screens)</p><div class="scroll"><img alt="{label} full-size SVG" src="{uri}" width="{w}" height="{h}"></div><p>Half-size view</p><div class="scroll"><img alt="{label} half-size SVG" src="{uri}" width="{w//2}" height="{h//2}"></div>'
         cards.append(f'<section><h2>{label}</h2>{preview}<p>Checks: {esc(check.get("status","not_run"))}. <a href="checkpoints/{label}/scene.svg" download>SVG source</a> · <a href="checkpoints/{label}/result.json">section log</a></p></section>')
+    performance = '<p>Performance telemetry unavailable for this older run.</p>'
+    telemetry_path = run/'telemetry.json'
+    if telemetry_path.exists():
+        telemetry = json.loads(telemetry_path.read_text(encoding='utf-8'))
+        timing_rows = []
+        def metric(value, suffix=''):
+            if value is None: return 'unavailable'
+            return esc(f'{value:,.2f}')+suffix
+        def rate(value):
+            return metric(value['value'])+f" <small>({value['covered_requests']}/{value['total_requests']})</small>"
+        for item in telemetry['sections']:
+            first = item['client_first_model_delta_seconds']
+            server = item['server_ttft_seconds']
+            timing_rows.append('<tr>'+''.join('<td>'+cell+'</td>' for cell in (
+                esc(item['checkpoint']+' · '+item['work_type']), str(item['requests']),
+                rate(item['completion_tokens']),
+                metric(first['mean'])+f" <small>({first['count']}/{item['requests']})</small>",
+                metric(server['mean'])+f" <small>({server['count']}/{item['requests']})</small>",
+                rate(item['prefill_tokens_per_second']), rate(item['decode_tokens_per_second'])))+'</tr>')
+        performance = ('<h2>Performance by task section</h2><div class="scroll"><table><tr>'
+            '<th>Section / work</th><th>Recorded requests</th><th>Output tokens</th><th>Client first delta (s)</th>'
+            '<th>Server TTFT (s)</th><th>Prefill tok/s</th><th>Decode tok/s</th></tr>'+''.join(timing_rows)+'</table></div>'
+            '<p>Parentheses show measured requests / total requests. Latencies are request means; token rates are weighted by measured engine time. '
+            'Output includes reasoning when the provider includes it. Missing measurements are not zero.</p>'
+            '<p>Client first delta includes transport and possible parser buffering; it is not engine TTFT. '
+            'vLLM shared-metric deltas are conditionally attributed only after idle/count/token checks; use a dedicated idle server. '
+            'Native harness timings remain unavailable unless the connector reports them.</p>'
+            '<p><a href="telemetry.json">Full telemetry and definitions (JSON)</a> · '
+            '<a href="telemetry.csv" download>Per-request telemetry (CSV)</a>. '
+            'Exports include timing sources, availability, token counts and request/tool classifications. Detailed arrival timings and runtime snapshots are retained in private adapter state.</p>')
     requirement_rows = json.loads((run/'frozen/protocol/REQUIREMENTS.json').read_text())['requirements']
     checklist = ''.join('<li><label><input type="checkbox"> '+esc(row['criterion'])+'</label></li>' for row in requirement_rows)
     document = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -34,6 +64,7 @@ def write_report(run):
 {failure}
 <p>Four-section completion: <strong>{esc(status['trajectory'])}</strong>. Machine checks do not grade artwork, prove tool compliance, or establish a model ranking.</p>
 <table><tr><th>Section</th><th>Execution</th><th>Machine checks</th><th>Seconds</th></tr>{''.join(rows)}</table>
+{performance}
 <p>{esc(status['timing_scope'])} Usage, tool calls and context are unavailable unless the adapter reports them. No hidden reasoning is inferred.</p>
 <p>These are your browser's offline SVG image previews, not standardized renderer screenshots or evidence that the candidate inspected pixels. Primary-track controls: <strong>{esc(status['controls'])}</strong>. Keep different protocols, tools and runtimes separate.</p>
 <details><summary>Visual review checklist — expand when ready</summary><p>Check full and half size. Use pass / partial / fail / not observed per requirement in <a href="visual-review.json">visual-review.json</a>; these temporary checkboxes are not saved grades.</p><ul>{checklist}</ul></details>

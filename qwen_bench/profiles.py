@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from .core import safe_config
 
-ALLOWED_SETTINGS={'temperature','top_p','seed','max_tokens','max_requests','max_tool_steps','effort','request_options'}
+ALLOWED_SETTINGS={'temperature','top_p','seed','max_tokens','max_requests','max_tool_steps','effort','request_options','stream','stream_usage','runtime_metrics'}
 
 
 def load_profile(path):

@@ -17,3 +17,5 @@ Each run retains the profile definition, source hash, instruction hash, requeste
 Keep a locked baseline and separately labeled experimental profiles. Agent/plugin-enabled experiments differ from the original no-helper/no-plugin primary controls. A comparison measures the whole configured system unless other variables are held fixed.
 
 Use repeated fresh trajectories and publish all attempted outcomes when authorized. Develop profiles on one task set and evaluate on held-out repository work. Otherwise improvement may only be overfitting to this scene, rubric, renderer or judge. Report transfer task completion, regressions, tool behavior and resource cost separately; do not turn ordinal artistic scores into a misleading universal score.
+
+Performance settings for direct profiles: `stream` (default true), `stream_usage` (default true), and `runtime_metrics` (`auto`, `vllm`, `off`). See [measurement definitions and limits](TELEMETRY.md). These settings change observability and belong in the comparison profile.

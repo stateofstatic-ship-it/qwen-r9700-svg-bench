@@ -8,7 +8,7 @@ First request: `type: preflight`, `checkpoint: null`, `protocol: svg-bench/1`, `
 
 Turn request: `type: turn`, `checkpoint: C0…C3`, `prompt_base64`, `prompt_sha256`, prior `session_id` (null for C0), and `timeout_seconds`. Decode/verify bytes and deliver them unchanged. Preserve actual conversation/tool state. Do not send future prompts early. Relative paths belong to v0.3-portable; original v0.2 requires true candidate-visible /work mapping and cannot be silently rewritten.
 
-Events are correlated with the current checkpoint. Optional types: `turn.started`, `tool.started`, `tool.completed`, `assistant.message`, `usage`, `adapter.event`. Include raw counters with source/scope and call IDs where available; missing is null. Do not extract hidden reasoning. Tool errors are evidence, not automatically poor competence if repaired.
+Events are correlated with the current checkpoint. Optional types: `turn.started`, `tool.started`, `tool.completed`, `assistant.message`, `usage`, `adapter.event`, `telemetry`. The [telemetry contract](TELEMETRY.md) defines request timing/usage events and failed-request preservation. Include raw counters with source/scope and call IDs where available; missing is null. Do not extract hidden reasoning. Tool errors are evidence, not automatically poor competence if repaired.
 
 Required success: `{"type":"turn.completed","checkpoint":"C0","status":"completed","session_id":"stable-real-session","usage":null}`. It must follow an actual native/model terminal event, not inferred prose. The adapter must quiesce workspace writes at this boundary until the next request. Recorder/checkpoints are outside the candidate workspace.
 

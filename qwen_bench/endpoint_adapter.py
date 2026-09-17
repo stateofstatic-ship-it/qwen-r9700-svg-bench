@@ -12,6 +12,8 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from qwen_bench.endpoint import Endpoint, EndpointError
 from qwen_bench.checks import inspect
+from qwen_bench.runtime_metrics import RuntimeCollector
+from qwen_bench.telemetry import SCHEMA, WORK_TYPES, usage_counts
 
 MAX_FILE = 256 * 1024
 MAX_LINE = 1024 * 1024
@@ -53,7 +55,7 @@ class Adapter:
             raise EndpointError('Repeated preflight')
         self.checkpoint = None
         options = dict(req.get('options', {}))
-        allowed = {'endpoint','model','api_key_env','max_tokens','temperature','top_p','seed','max_requests','max_tool_steps','reasoning_effort','request_options'}
+        allowed = {'endpoint','model','api_key_env','max_tokens','temperature','top_p','seed','max_requests','max_tool_steps','reasoning_effort','request_options','stream','stream_usage','runtime_metrics'}
         if set(options) - allowed:
             raise EndpointError('Unknown endpoint adapter option')
         self.workspace = Path(req['workspace']).resolve(strict=True)
@@ -67,11 +69,17 @@ class Adapter:
             api_key_env=options.get('api_key_env','SVG_BENCH_API_KEY'), max_tokens=options.get('max_tokens',8192),
             temperature=options.get('temperature',0), top_p=options.get('top_p',1),
             max_requests=options.get('max_requests',16), max_tool_steps=options.get('max_tool_steps',48))
+        for field in ('stream', 'stream_usage'):
+            self.config[field] = options.get(field, True)
+            if type(self.config[field]) is not bool: raise EndpointError(field+' must be boolean')
+        self.config['runtime_metrics'] = options.get('runtime_metrics', 'auto')
+        if self.config['runtime_metrics'] not in ('auto','vllm','off'): raise EndpointError('Invalid runtime_metrics mode')
+        self.metrics = RuntimeCollector(self.endpoint, self.model, self.config['runtime_metrics'])
         if 'reasoning_effort' in options:
             if not isinstance(options['reasoning_effort'],str): raise EndpointError('reasoning_effort must be a string')
             self.config['reasoning_effort']=options['reasoning_effort']
         extra=options.get('request_options',{})
-        if not isinstance(extra,dict) or set(extra)&{'messages','tools','tool_choice','stream','model','n','max_tokens','temperature','top_p','seed','reasoning_effort'}:
+        if not isinstance(extra,dict) or set(extra)&{'messages','tools','tool_choice','stream','stream_options','model','n','max_tokens','temperature','top_p','seed','reasoning_effort'}:
             raise EndpointError('request_options cannot override the fixed conversation/tool contract or named settings')
         self.config['request_options']=extra
         if 'seed' in options:
@@ -159,16 +167,46 @@ class Adapter:
             if remaining<=0: raise EndpointError('Turn deadline exceeded')
             payload={k:self.config[k] for k in ('model','max_tokens','temperature','top_p','seed','reasoning_effort') if k in self.config}
             payload.update(self.config.get('request_options',{}))
-            payload.update(messages=self.messages,tools=TOOLS,tool_choice='auto',stream=False)
+            payload.update(messages=self.messages,tools=TOOLS,tool_choice='auto',stream=self.config['stream'])
+            if self.config['stream'] and self.config['stream_usage']:
+                payload['stream_options'] = {'include_usage':True}
             self.serial+=1
             prefix=f'request-{self.serial:04d}'
             if len(json.dumps(payload,ensure_ascii=False).encode('utf-8')) > 8 * 1024 * 1024:
                 raise EndpointError('Endpoint request/history exceeds 8 MiB')
             self.save(prefix+'.json',payload)
-            response=self.endpoint.call('/chat/completions',payload,timeout=remaining)
-            self.save(prefix+'-response.json',response)
+            trigger = 'section_prompt' if index == 0 else 'tool_continuation'
+            self.event('adapter.event', name='inference.request.started', request=self.serial, trigger=trigger)
+            before = self.metrics.before()
+            response = None
+            client = {}
+            request_error = None
+            try:
+                remaining = deadline-time.monotonic()
+                if remaining <= 0: raise EndpointError('Turn deadline exceeded before inference')
+                response, client = self.endpoint.call_measured('/chat/completions',payload,timeout=remaining)
+                self.save(prefix+'-response.json',response)
+            except EndpointError as error:
+                request_error = error
+                client = getattr(error, 'telemetry', None) or {}
+            runtime = self.metrics.after(before, response)
+            snapshots = runtime.pop('raw_snapshots', None)
+            if snapshots is not None: self.save(prefix+'-runtime-snapshots.json', snapshots)
+            choices = response.get('choices', []) if response else []
+            choice = choices[0] if isinstance(choices,list) and len(choices)==1 and isinstance(choices[0],dict) else {}
+            message = choice.get('message') or {}
+            calls = message.get('tool_calls') or [] if isinstance(message,dict) else []
+            names = [call.get('function',{}).get('name') for call in calls if isinstance(call,dict) and isinstance(call.get('function'),dict)] if isinstance(calls,list) else []
+            telemetry = dict(schema=SCHEMA, request=self.serial, work_type=WORK_TYPES.get(self.checkpoint),
+                trigger=trigger, outcome='transport_failed' if request_error else choice.get('finish_reason','invalid_response'),
+                client=client, runtime=runtime, usage=response.get('usage') if response else None, tool_names=names)
+            self.save(prefix+'-telemetry.json',telemetry)
+            public = dict(telemetry, client={k:v for k,v in client.items() if k != 'delta_arrival_seconds'},
+                          usage=usage_counts(telemetry['usage']), tool_names=[str(name)[:128] for name in names[:256]])
+            self.event('telemetry', **public)
+            if request_error is not None: raise request_error
             if time.monotonic() >= deadline: raise EndpointError('Turn deadline exceeded')
-            raw_usage=response.get('usage')
+            raw_usage=usage_counts(response.get('usage'))
             usage.append({'request':self.serial,'scope':'provider response for this request (includes replayed history)','raw':raw_usage})
             self.event('usage',**usage[-1])
             choices=response.get('choices')
