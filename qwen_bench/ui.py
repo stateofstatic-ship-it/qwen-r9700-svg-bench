@@ -91,9 +91,9 @@ def make_server(runs_dir,port=0):
                 if report:
                     relative=path[len('/report/'):]
                     target=(report.parent/relative).resolve()
-                    allowed={'report.html','status.json','manifest.json','visual-review.json'}
+                    allowed={'report.html','status.json','manifest.json','visual-review.json','telemetry.json','telemetry.csv'}
                     import re
-                    if relative in allowed or re.fullmatch(r'checkpoints/C[0-3]/(scene\.svg|result\.json)',relative):
+                    if relative in allowed or re.fullmatch(r'checkpoints/C[0-3]/(scene\.svg|result\.json|telemetry\.json)',relative):
                         if target.is_relative_to(report.parent) and target.is_file():
                             # SVG source is download-only, never an active HTML navigation.
                             mime='text/html; charset=utf-8' if target.name=='report.html' else 'application/json' if target.suffix=='.json' else 'application/octet-stream'

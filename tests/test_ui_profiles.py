@@ -72,6 +72,12 @@ class UITests(unittest.TestCase):
                 self.assertFalse(status['busy']);self.assertIsNone(status['error']);self.assertEqual(status['report'],'/report/report.html')
                 with request.urlopen(base+status['report'],timeout=5) as response:report=response.read().decode()
                 self.assertIn('synthetic_fixture',report)
+                with request.urlopen(base+'/report/telemetry.json',timeout=5) as response:
+                    self.assertEqual(json.load(response)['schema'],'svg-bench-telemetry/1')
+                with request.urlopen(base+'/report/checkpoints/C0/telemetry.json',timeout=5) as response:
+                    self.assertEqual(json.load(response)['summary']['checkpoint'],'C0')
+                with request.urlopen(base+'/report/telemetry.csv',timeout=5) as response:
+                    self.assertIn(b'client_time_to_first_model_delta_seconds',response.read())
                 with self.assertRaises(error.HTTPError):request.urlopen(base+'/report/private-adapter-state/anything',timeout=5)
             finally:
                 launcher.cancel.set();server.shutdown();server.server_close();thread.join(timeout=5)
