@@ -47,9 +47,11 @@ class UnitTests(unittest.TestCase):
         result = resolve_options({'endpoint': 'http://localhost:1/v1', 'seed': 7})
         self.assertEqual((result['effort'], result['max_tokens'], result['temperature'], result['top_p']), ('xhigh', 65536, .8, .95))
         self.assertEqual(result['seed'], 7)
+        self.assertFalse(result['vision'])
+        self.assertTrue(resolve_options({'endpoint':'http://localhost:1/v1', 'vision':True})['vision'])
 
     def test_invalid_options(self):
-        for values in ({'harness':'codex'}, {'max_requests':65}, {'max_tokens':True}, {'effort':'bogus'},
+        for values in ({'vision':'true'}, {'vision':1}, {'harness':'codex'}, {'max_requests':65}, {'max_tokens':True}, {'effort':'bogus'},
                        {'temperature':float('nan')}, {'seed':False}, {'context_window':0}, {'unknown':1},
                        {'request_options':{'messages':[]}}, {'request_options':{'max_tokens':123}},
                        {'request_options':{'bad':float('inf')}}):
@@ -177,7 +179,9 @@ class SyntheticServer(BaseHTTPRequestHandler):
             # Genuine stock DSH filesystem read, not a fabricated tool lifecycle.
             tools={entry['function']['name']:entry['function'] for entry in payload['tools']}
             self.server.tool_schemas=tools
-            if 'bash' in tools:
+            if getattr(self.server, 'image_path', None):
+                tool='read_image'; args={'file_path':self.server.image_path}
+            elif 'bash' in tools:
                 tool='bash'; args={'command':getattr(self.server,'tool_command','printf synthetic-tool-result'), 'description':'Synthetic connector test'}
             else:
                 tool=next(iter(tools)); args={}
@@ -195,6 +199,31 @@ class SyntheticServer(BaseHTTPRequestHandler):
 
 @unittest.skipUnless(shutil.which('dsh') and shutil.which('node'), 'Installed DSH and Node.js unavailable; native integration not_run')
 class NativeIntegration(unittest.TestCase):
+    def test_vision_image_reaches_native_provider(self):
+        with tempfile.TemporaryDirectory(prefix='svg-dsh-vision-') as temp:
+            root=Path(temp); work=root/'work'; state=root/'state'; work.mkdir(); state.mkdir()
+            (work/'pixel.png').write_bytes(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAF0lEQVR4nGP8z0AaYCJR/aiGUQ1DSAMAQC4BH2bjRnMAAAAASUVORK5CYII='))
+            server=ThreadingHTTPServer(('127.0.0.1',0),SyntheticServer)
+            server.requests=[]; server.tool_schemas={}; server.image_path='pixel.png'
+            thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
+            events=[]; harness=Harness(events.append)
+            try:
+                harness.preflight({'type':'preflight','benchmark_protocol':'v0.3-portable','workspace':str(work),
+                    'state_dir':str(state),'options':{'harness':'dsh','endpoint':'http://127.0.0.1:%s/v1'%server.server_port,
+                    'model':'synthetic-dsh','max_tokens':1024,'vision':True}})
+                self.assertTrue(events[-1]['resolved']['vision'])
+                harness.turn(turn_request(0,harness.session))
+                harness.close(graceful=True)
+                self.assertEqual(len(server.requests),2)
+                images=[part for message in server.requests[1]['messages']
+                        if isinstance(message.get('content'),list) for part in message['content']
+                        if part.get('type')=='image_url']
+                self.assertEqual(len(images),1, str([e for e in events if e['type']=='tool.completed'])[:2000])
+                self.assertTrue(images[0]['image_url']['url'].startswith('data:image/png;base64,'))
+                self.assertEqual([e['status'] for e in events if e['type']=='turn.completed'],['completed'])
+            finally:
+                harness.close(); server.shutdown(); server.server_close(); thread.join(2)
+
     def test_four_turns_native_events_and_reasoning_replay(self):
         with tempfile.TemporaryDirectory(prefix='svg-dsh-synthetic-') as temp:
             root=Path(temp); work=root/'work'; state=root/'state'; work.mkdir(); state.mkdir()

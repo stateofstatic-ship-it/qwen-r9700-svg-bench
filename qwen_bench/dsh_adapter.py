@@ -66,7 +66,7 @@ def positive_integer(value, field, maximum):
 def resolve_options(options):
     allowed = {'harness', 'executable', 'endpoint', 'model', 'effort', 'max_tokens',
                'temperature', 'top_p', 'seed', 'request_options', 'max_requests',
-               'context_window', 'api_key_env'}
+               'context_window', 'api_key_env', 'vision'}
     if not isinstance(options, dict) or set(options) - allowed:
         raise DshError('Unknown DSH option')
     if options.get('harness', 'dsh') != 'dsh':
@@ -80,6 +80,9 @@ def resolve_options(options):
     if effort not in ('off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'):
         raise DshError('Invalid DSH reasoning effort')
     config = dict(options)
+    if type(options.get('vision', False)) is not bool:
+        raise DshError('vision must be true or false')
+    config['vision'] = options.get('vision', False)
     config.update(effort=effort,
                   max_tokens=positive_integer(options.get('max_tokens', 65536), 'max_tokens', 1048576),
                   max_requests=positive_integer(options.get('max_requests', 64), 'max_requests', 64))
@@ -289,7 +292,7 @@ class Harness:
             'llm-pi-ai': {'providers': {'svg-benchmark-local': {
                 'apiKeyEnv': 'SVG_BENCH_DSH_KEY', 'api': 'openai-completions', 'baseURL': local_url,
                 'models': [{'id': model, 'contextWindow': context, 'maxTokens': self.config['max_tokens'],
-                            'input': ['text'], 'reasoningEfforts': efforts,
+                            'input': ['text', 'image'] if self.config['vision'] else ['text'], 'reasoningEfforts': efforts,
                             'compat': {'maxTokensField': 'max_tokens'}}]}}},
             'agent-default-model': {'provider': 'svg-benchmark-local', 'model': model,
                                     **({'reasoningEffort': effort} if effort != 'off' else {})}})

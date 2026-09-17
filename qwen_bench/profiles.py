@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from .core import safe_config
 
-ALLOWED_SETTINGS={'temperature','top_p','seed','max_tokens','max_requests','max_tool_steps','effort','request_options','stream','stream_usage','runtime_metrics','context_window'}
+ALLOWED_SETTINGS={'temperature','top_p','seed','max_tokens','max_requests','max_tool_steps','effort','request_options','stream','stream_usage','runtime_metrics','context_window','vision'}
 
 
 def load_profile(path):
@@ -35,7 +35,9 @@ def apply_profile(config,loaded,harness):
     if profile['harness']!=harness:raise ValueError('Profile harness does not match selected harness')
     result=copy.deepcopy(config);options=result.setdefault('options',{})
     settings=profile.get('settings',{})
-    if harness=='dsh' and set(settings)-{'effort','temperature','top_p','max_tokens','max_requests','request_options','context_window','seed'}:
+    if 'vision' in settings and (harness != 'dsh' or type(settings['vision']) is not bool):
+        raise ValueError('vision is a boolean DeepSeek profile setting')
+    if harness=='dsh' and set(settings)-{'effort','temperature','top_p','max_tokens','max_requests','request_options','context_window','seed','vision'}:
         raise ValueError('Unsupported DeepSeek profile setting')
     if harness not in ('direct','dsh') and set(settings)-{'effort'}:
         raise ValueError('This native harness connector currently applies effort only; sampling must be configured in the harness and recorded as an external requirement')

@@ -28,6 +28,10 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(config['options']['top_p'],.95)
         self.assertEqual(config['options']['effort'],'xhigh')
         self.assertTrue(config['options']['request_options']['chat_template_kwargs']['preserve_thinking'])
+        loaded['definition']['settings']['vision']=True
+        self.assertTrue(apply_profile({},loaded,'dsh')['options']['vision'])
+        loaded['definition']['settings']['vision']='true'
+        with self.assertRaises(ValueError):apply_profile({},loaded,'dsh')
         with self.assertRaises(ValueError):apply_profile({},loaded,'direct')
 
     def test_unknown_setting_rejected(self):
