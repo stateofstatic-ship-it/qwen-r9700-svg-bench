@@ -171,7 +171,11 @@ class Endpoint:
                                             invalid()
                                         assembled_text_bytes += len(value.encode('utf-8'))
                                         if assembled_text_bytes > MAX_RESPONSE: raise EndpointError('Assembled endpoint response exceeds 2 MiB')
-                                        tool[key] = tool.get(key, '') + value
+                                        if key == 'type':
+                                            if value != 'function': invalid()
+                                            tool[key] = value
+                                        else:
+                                            tool[key] = tool.get(key, '') + value
                                 function = part.get('function', {})
                                 if not isinstance(function, dict):
                                     invalid()

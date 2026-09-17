@@ -56,13 +56,14 @@ class StreamTests(unittest.TestCase):
                      {'index': 1, 'id': 'b', 'type': 'function', 'function': {'name': 'second', 'arguments': '{'}},
                      {'index': 0, 'id': 'a', 'type': 'function', 'function': {'name': 'first', 'arguments': '{'}}]}),
                  event({'tool_calls': [
-                     {'index': 0, 'function': {'arguments': '}'}},
+                     {'index': 0, 'type': 'function', 'function': {'arguments': '}'}},
                      {'index': 1, 'function': {'arguments': '}'}}]}),
                  event({}, 'tool_calls'), event(usage={'completion_tokens': 17}), b'data: [DONE]\n\n']
         with server(parts, delay=.01) as endpoint:
             value, measured = endpoint.call_measured('/chat/completions', {'stream': True})
         message = value['choices'][0]['message']
         self.assertEqual(message['reasoning_content'], 'why')
+        self.assertEqual(message['tool_calls'][0]['type'], 'function')
         self.assertEqual(message['thinking'], 'plan')
         self.assertIsNone(message['reasoning'])
         self.assertEqual([t['id'] for t in message['tool_calls']], ['a', 'b'])
